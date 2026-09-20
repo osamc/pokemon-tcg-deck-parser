@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Deck parser debug</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>Deck parser debug</h1>
+        <p>Paste a PTCGL or Limitless export, then parse locally or resolve through TCGdex.</p>
+      </div>
+      <p id="status" class="status" aria-live="polite">Ready</p>
+    </header>
+
+    <section class="panel">
+      <div class="toolbar">
+        <label>
+          Format
+          <select id="format">
+            <option value="auto">Auto</option>
+            <option value="ptcgl">PTCGL</option>
+            <option value="limitless">Limitless</option>
+          </select>
+        </label>
+        <label>
+          Hydrate
+          <select id="hydrate">
+            <option value="resume">resume (set briefs)</option>
+            <option value="full">full cards</option>
+          </select>
+        </label>
+        <button type="button" id="sample-ptcgl">Load PTCGL sample</button>
+        <button type="button" id="sample-limitless">Load Limitless sample</button>
+        <button type="button" id="parse">Parse only</button>
+        <button type="button" id="resolve" class="primary">Parse &amp; resolve</button>
+      </div>
+      <textarea
+        id="decklist"
+        spellcheck="false"
+        placeholder="Paste a deck export here"
+      ></textarea>
+    </section>
+
+    <section id="summary" class="summary" hidden></section>
+    <section id="messages" class="messages" hidden></section>
+    <section id="cards" class="cards" hidden></section>
+    <section id="json-wrap" class="json-wrap" hidden>
+      <h2>Debug JSON</h2>
+      <pre id="json"></pre>
+    </section>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
