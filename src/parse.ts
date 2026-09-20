@@ -1,4 +1,4 @@
-import { expandEnergyShorthand, isBasicEnergyName } from "./energy.js";
+import { expandEnergyShorthand, isEnergyCardName, isEnergyTrainerName } from "./energy.js";
 import {
   inferFormat,
   isCardLine,
@@ -76,7 +76,8 @@ export function parseDecklist(text: string, options: ParseOptions = {}): ParsedD
 
     let category = currentCategory;
     if (category === "unknown") {
-      category = isBasicEnergyName(name) ? "energy" : "unknown";
+      if (isEnergyCardName(name)) category = "energy";
+      else if (isEnergyTrainerName(name)) category = "trainer";
     }
 
     cards.push({

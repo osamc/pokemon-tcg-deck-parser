@@ -1,4 +1,4 @@
-import { energyDisplayNames, isBasicEnergyName, isEnergySetCode } from "./energy.js";
+import { energyDisplayNames, useEnergyFallback } from "./energy.js";
 import { localIdCandidates, namesMatch, normalizeLocalId } from "./normalize.js";
 import { mapPool } from "./pool.js";
 import { extraSetIdsForCode, galleryKind, isAltSetCode, isPseudoSetCode } from "./set-aliases.js";
@@ -167,7 +167,7 @@ function isGallerySet(setId: string): boolean {
 }
 
 function lookupNamesFor(card: ParsedCard): string[] {
-  if (isEnergySetCode(card.setCode) || isBasicEnergyName(card.name)) {
+  if (useEnergyFallback(card.name, card.setCode)) {
     return energyDisplayNames(card.name);
   }
   return [card.name];
@@ -188,7 +188,7 @@ function matchByName(
   }
   if (matches.length === 0) return undefined;
 
-  const energyFallback = isEnergySetCode(card.setCode) || isBasicEnergyName(card.name);
+  const energyFallback = useEnergyFallback(card.name, card.setCode);
   // PTCGL "Energy 29" numbers are artwork IDs, not collector numbers.
   if (card.number && !energyFallback) {
     const byNumber = matches.find((item) =>

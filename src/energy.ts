@@ -44,8 +44,34 @@ export function isBasicEnergyName(name: string): boolean {
   ).test(expanded.trim());
 }
 
+/**
+ * True for actual Energy cards (Water Energy, Jet Energy, …).
+ * False for trainers that only mention energy (Energy Switch, Energy Removal 2).
+ */
+export function isEnergyCardName(name: string): boolean {
+  const expanded = expandEnergyShorthand(name).trim();
+  return /.\s+energy$/i.test(expanded);
+}
+
+/** Trainers whose name contains "Energy" but are not Energy cards. */
+export function isEnergyTrainerName(name: string): boolean {
+  const expanded = expandEnergyShorthand(name).trim();
+  return /\benergy\b/i.test(expanded) && !isEnergyCardName(expanded);
+}
+
+/** Names like "Energy Removal 2" / "Super Energy Removal 2" where the digit is part of the title. */
+export function isNumberedEnergyTrainerName(name: string): boolean {
+  return /^(?:super\s+)?energy\s+removal\s+\d+$/i.test(name.trim());
+}
+
 export function isEnergySetCode(code: string | undefined): boolean {
   return Boolean(code && /^energy$/i.test(code));
+}
+
+/** PTCGL Energy-set fallback applies only to real Energy cards, never Energy-named trainers. */
+export function useEnergyFallback(name: string, setCode?: string): boolean {
+  if (!isEnergyCardName(name)) return false;
+  return isEnergySetCode(setCode) || isBasicEnergyName(name);
 }
 
 function titleCase(value: string): string {

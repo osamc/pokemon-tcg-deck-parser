@@ -1,3 +1,4 @@
+import { isEnergyCardName, isEnergySetCode, isNumberedEnergyTrainerName } from "./energy.js";
 import type { CardCategory, DeckFormat } from "./types.js";
 
 const SECTION_RE =
@@ -7,7 +8,7 @@ const BARE_SECTION_RE =
 const TOTAL_RE = /^total\s+cards?\s*[:：]?\s*(\d+)\s*$/i;
 const CARD_LINE_RE = /^(\d{1,3})\s*[x×]?\s+(.+)$/i;
 const NUMBER_RE = /^[A-Za-z]{0,5}\d{1,4}[A-Za-z]?$/;
-const SETCODE_RE = /^[A-Z][A-Z0-9]{0,6}(?:-[A-Z0-9]{1,4})?$/i;
+const SETCODE_RE = /^[A-Z][A-Z0-9]{0,6}(?:-[A-Z0-9]{1,4})?$/;
 const FOIL_MARKERS = new Set(["PH", "RH", "SH"]);
 
 export function sectionCategory(label: string): CardCategory {
@@ -60,10 +61,10 @@ export function splitCardTokens(rest: string): SplitCardTokens {
   }
 
   if (
-    tokens.length >= 4 &&
+    tokens.length >= 3 &&
     NUMBER_RE.test(tokens[tokens.length - 1] ?? "") &&
     /^energy$/i.test(tokens[tokens.length - 2] ?? "") &&
-    /energy$/i.test(tokens[tokens.length - 3] ?? "")
+    isEnergyCardName(tokens.slice(0, -2).join(" "))
   ) {
     return {
       nameTokens: tokens.slice(0, -2),
@@ -76,7 +77,8 @@ export function splitCardTokens(rest: string): SplitCardTokens {
   if (
     tokens.length >= 3 &&
     NUMBER_RE.test(tokens[tokens.length - 1] ?? "") &&
-    SETCODE_RE.test(tokens[tokens.length - 2] ?? "")
+    looksLikeSetCode(tokens[tokens.length - 2] ?? "") &&
+    !isLoneEnergyTrainerName(tokens.slice(0, -2), tokens[tokens.length - 2])
   ) {
     return {
       nameTokens: tokens.slice(0, -2),
@@ -86,7 +88,11 @@ export function splitCardTokens(rest: string): SplitCardTokens {
     };
   }
 
-  if (tokens.length >= 2 && NUMBER_RE.test(tokens[tokens.length - 1] ?? "")) {
+  if (
+    tokens.length >= 2 &&
+    NUMBER_RE.test(tokens[tokens.length - 1] ?? "") &&
+    !isNumberedEnergyTrainerName(tokens.join(" "))
+  ) {
     return {
       nameTokens: tokens.slice(0, -1),
       number: tokens[tokens.length - 1],
@@ -95,6 +101,22 @@ export function splitCardTokens(rest: string): SplitCardTokens {
   }
 
   return { nameTokens: tokens, foil };
+}
+
+function looksLikeSetCode(token: string): boolean {
+  if (!token) return false;
+  const uniformCase = token === token.toUpperCase() || token === token.toLowerCase();
+  if (!uniformCase) return false;
+  return SETCODE_RE.test(token.toUpperCase());
+}
+
+/** "Energy Switch 194" must not become name "Energy" + set "SWITCH". */
+function isLoneEnergyTrainerName(nameTokens: string[], maybeSet: string | undefined): boolean {
+  return (
+    nameTokens.length === 1 &&
+    /^energy$/i.test(nameTokens[0] ?? "") &&
+    !isEnergySetCode(maybeSet)
+  );
 }
 
 export function looksLikePtcgl(text: string): boolean {

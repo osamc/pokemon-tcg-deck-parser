@@ -1,6 +1,14 @@
 export { detectFormat, parseDecklist } from "./parse.js";
 export { DeckParser, parseDeck } from "./parser.js";
-export { energyDisplayNames, expandEnergyShorthand, isBasicEnergyName } from "./energy.js";
+export {
+  energyDisplayNames,
+  expandEnergyShorthand,
+  isBasicEnergyName,
+  isEnergyCardName,
+  isEnergyTrainerName,
+  isNumberedEnergyTrainerName,
+  useEnergyFallback,
+} from "./energy.js";
 export { SET_CODE_ALIASES, AMBIGUOUS_SET_CODES } from "./set-aliases.js";
 
 export type {
