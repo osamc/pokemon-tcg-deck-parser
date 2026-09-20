@@ -76,6 +76,56 @@ describe("resolveDeck", () => {
     expect(resolved.cards[1]?.tcgdexId).toBe("sv01-181");
   });
 
+  it("resolves Energy-named trainers by their real name, not as Energy cards", async () => {
+    const parsed = parseDecklist(`4 Energy Switch SVI 194
+4 Energy Retrieval SVI 171
+2 Energy Removal 2 CES 140
+4 Energy Switch 194`);
+
+    const lookup = mockLookup(
+      [
+        {
+          id: "sv01",
+          name: "Scarlet & Violet",
+          abbreviation: { official: "SVI" },
+          cards: [
+            resume({ id: "sv01-194", localId: "194", name: "Energy Switch" }),
+            resume({ id: "sv01-171", localId: "171", name: "Energy Retrieval" }),
+            resume({ id: "sv01-011", localId: "011", name: "Water Energy" }),
+          ],
+        },
+        {
+          id: "sm7",
+          name: "Celestial Storm",
+          abbreviation: { official: "CES" },
+          cards: [resume({ id: "sm7-140", localId: "140", name: "Energy Removal 2" })],
+        },
+      ],
+      {
+        Energy: [resume({ id: "sve-011", localId: "011", name: "Water Energy" })],
+        "Energy Switch": [
+          resume({ id: "sv01-194", localId: "194", name: "Energy Switch" }),
+          resume({ id: "swsh1-129", localId: "129", name: "Energy Switch" }),
+        ],
+        "Energy Retrieval": [resume({ id: "sv01-171", localId: "171", name: "Energy Retrieval" })],
+        "Energy Removal 2": [resume({ id: "sm7-140", localId: "140", name: "Energy Removal 2" })],
+      },
+    );
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.unresolved).toHaveLength(0);
+    expect(resolved.cards.map((card) => card.tcgdexId)).toEqual([
+      "sv01-194",
+      "sv01-171",
+      "sm7-140",
+      "sv01-194",
+    ]);
+    expect(resolved.cards.every((card) => card.category === "trainer")).toBe(true);
+    expect(resolved.cards.every((card) => card.name !== "Energy" && card.name !== "Water Energy")).toBe(
+      true,
+    );
+  });
+
   it("falls back to a name search for Energy-set basics", async () => {
     const parsed = parseDecklist("11 Basic {W} Energy Energy 29");
     const lookup = mockLookup([], {

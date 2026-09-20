@@ -105,6 +105,101 @@ describe("parseDecklist", () => {
       number: "191",
     });
   });
+
+  it("keeps Energy-named trainers as trainers, not energy cards", () => {
+    const parsed = parseDecklist(`Trainer: 6
+4 Energy Switch SVI 194
+4 Energy Retrieval SVI 171
+2 Energy Removal 2 CES 140
+4 Energy Search SSH 165
+2 Super Energy Retrieval PAL 189
+1 Super Energy Removal 2 UNB 168
+Energy: 3
+2 Jet Energy PAL 190
+11 Basic {W} Energy Energy 29`);
+
+    const trainers = parsed.cards.filter((card) => card.category === "trainer");
+    expect(trainers.map((card) => card.name)).toEqual([
+      "Energy Switch",
+      "Energy Retrieval",
+      "Energy Removal 2",
+      "Energy Search",
+      "Super Energy Retrieval",
+      "Super Energy Removal 2",
+    ]);
+    expect(trainers.every((card) => card.category === "trainer")).toBe(true);
+
+    expect(parsed.cards.find((card) => card.name === "Energy Switch")).toMatchObject({
+      setCode: "SVI",
+      number: "194",
+      category: "trainer",
+    });
+    expect(parsed.cards.find((card) => card.name === "Energy Removal 2")).toMatchObject({
+      setCode: "CES",
+      number: "140",
+      category: "trainer",
+    });
+    expect(parsed.cards.find((card) => card.name === "Jet Energy")).toMatchObject({
+      category: "energy",
+      setCode: "PAL",
+      number: "190",
+    });
+    expect(parsed.cards.find((card) => card.name === "Basic Water Energy")).toMatchObject({
+      category: "energy",
+      setCode: "Energy",
+      number: "29",
+    });
+  });
+
+  it("infers trainer vs energy from the name when sections are missing", () => {
+    const parsed = parseDecklist(`4 Energy Switch
+4 Energy Retrieval
+4 Energy Removal 2
+4 Energy Search
+2 Jet Energy
+11 Basic {W} Energy Energy 29`);
+
+    expect(parsed.cards.find((card) => card.name === "Energy Switch")).toMatchObject({
+      category: "trainer",
+      setCode: undefined,
+      number: undefined,
+    });
+    expect(parsed.cards.find((card) => card.name === "Energy Retrieval")).toMatchObject({
+      category: "trainer",
+    });
+    expect(parsed.cards.find((card) => card.name === "Energy Removal 2")).toMatchObject({
+      name: "Energy Removal 2",
+      category: "trainer",
+      setCode: undefined,
+      number: undefined,
+    });
+    expect(parsed.cards.find((card) => card.name === "Energy Search")).toMatchObject({
+      category: "trainer",
+    });
+    expect(parsed.cards.find((card) => card.name === "Jet Energy")?.category).toBe("energy");
+    expect(parsed.cards.find((card) => card.name === "Basic Water Energy")?.category).toBe("energy");
+  });
+
+  it("does not treat Switch or Removal as set codes on Energy trainers", () => {
+    expect(parseDecklist("4 Energy Switch 194").cards[0]).toMatchObject({
+      name: "Energy Switch",
+      number: "194",
+      setCode: undefined,
+      category: "trainer",
+    });
+    expect(parseDecklist("4 ENERGY SWITCH 194").cards[0]).toMatchObject({
+      name: "ENERGY SWITCH",
+      number: "194",
+      setCode: undefined,
+      category: "trainer",
+    });
+    expect(parseDecklist("4 Energy Removal 2").cards[0]).toMatchObject({
+      name: "Energy Removal 2",
+      setCode: undefined,
+      number: undefined,
+      category: "trainer",
+    });
+  });
 });
 
 describe("detectFormat", () => {
