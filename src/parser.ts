@@ -25,6 +25,9 @@ export class DeckParser {
     } else if (options.cacheTTL !== undefined) {
       tcgdex.setCacheTTL(options.cacheTTL);
     }
+    if (options.endpoint !== undefined) {
+      tcgdex.setEndpoint(normalizeEndpoint(options.endpoint));
+    }
 
     const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
     this.defaults = {
@@ -59,6 +62,12 @@ export class DeckParser {
     const parsed = this.parse(text, options);
     return this.resolve(parsed, options);
   }
+}
+
+function normalizeEndpoint(endpoint: string): string {
+  const trimmed = endpoint.trim().replace(/\/+$/, "");
+  if (!trimmed) throw new Error("DeckParser: `endpoint` must be a non-empty URL.");
+  return trimmed;
 }
 
 /** Convenience helper that constructs a parser, parses, and resolves. */

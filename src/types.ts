@@ -64,6 +64,12 @@ export interface DeckParserOptions {
   /** Reuse an existing SDK instance (shares its cache). */
   tcgdex?: TCGdex;
   /**
+   * Base URL of the TCGdex API, e.g. a self-hosted instance or proxy.
+   * Defaults to the SDK's endpoint (`https://api.tcgdex.net/v2`).
+   * The language segment is appended by the SDK, so omit it here.
+   */
+  endpoint?: string;
+  /**
    * SDK cache TTL in seconds. Defaults to 24 hours.
    * Card/set data rarely changes, so a long TTL avoids repeat traffic.
    */
