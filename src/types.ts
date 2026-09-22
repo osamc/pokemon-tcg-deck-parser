@@ -102,4 +102,10 @@ export interface CardLookup {
   getSet(id: string): Promise<SetLike | undefined>;
   getCard(id: string): Promise<Card | CardResume | undefined>;
   findCardsByName(name: string): Promise<CardResumeLike[]>;
+  /**
+   * TCGdex category for each id.
+   * Callers pass unique ids; implementations should batch them
+   * (filtered list queries, not one request per card).
+   */
+  categoriesForIds?(ids: string[]): Promise<Map<string, CardCategory>>;
 }

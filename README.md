@@ -108,6 +108,7 @@ Pass `{ format: "ptcgl" }` or `{ format: "limitless" }` to skip auto-detection.
 5. Match collector numbers locally (padding, `TG`/`GG` gallery sets, promo IDs). `RR` is treated as both Rising Rivals and Team Rocket Returns and disambiguated by card name; Limitless `TRR` maps to Team Rocket Returns.
 6. Name search is only used for leftovers (basic Energy-set lines, ALT prints, name-only rows).
 7. `hydrate: "full"` then fetches each **unique** matched card id, still through the SDK cache and a concurrency cap.
+8. Confirm each matched card's category. Set briefs do not include one, and a missing or wrong section divider can file trainers under Pokémon. Resolved ids are checked with filtered card-list queries — one query per category (`Pokemon`, `Trainer`, `Energy`) per chunk of ids, not one request per card. When the API disagrees, the card's `category` is corrected and a warning is recorded. `hydrate: "full"` already returns `category`, so those decks skip the extra queries.
 
 The SDK cache TTL defaults to 24 hours. Repeat parses of overlapping decks should mostly be cache hits.
 
