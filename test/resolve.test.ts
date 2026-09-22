@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { parseDecklist } from "../src/parse.js";
 import { resolveDeck } from "../src/resolve.js";
-import type { CardLookup, CardResumeLike, SetLike } from "../src/types.js";
+import type { CardCategory, CardLookup, CardResumeLike, SetLike } from "../src/types.js";
 
 function resume(partial: CardResumeLike): CardResumeLike {
   return partial;
 }
 
-function mockLookup(sets: SetLike[], names: Record<string, CardResumeLike[]> = {}): CardLookup {
+function mockLookup(
+  sets: SetLike[],
+  names: Record<string, CardResumeLike[]> = {},
+  categories: Record<string, CardCategory> = {},
+): CardLookup & { categoryQueries: string[][] } {
   const byId = new Map(sets.map((set) => [set.id, set]));
   const codeIndex = new Map<string, string[]>();
   for (const set of sets) {
@@ -21,7 +25,16 @@ function mockLookup(sets: SetLike[], names: Record<string, CardResumeLike[]> = {
     }
   }
 
+  const categoryQueries: string[][] = [];
+  const apiLabel: Record<CardCategory, string> = {
+    pokemon: "Pokemon",
+    trainer: "Trainer",
+    energy: "Energy",
+    unknown: "Unknown",
+  };
+
   return {
+    categoryQueries,
     async resolveSetCodes(codes) {
       const result = new Map<string, string[]>();
       for (const code of codes) {
@@ -35,12 +48,25 @@ function mockLookup(sets: SetLike[], names: Record<string, CardResumeLike[]> = {
     async getCard(id) {
       for (const set of sets) {
         const card = set.cards.find((item) => item.id === id);
-        if (card) return { ...card, category: "Pokemon" } as never;
+        if (card) {
+          const category = categories[id] ? apiLabel[categories[id]] : "Pokemon";
+          return { ...card, category } as never;
+        }
       }
       return undefined;
     },
     async findCardsByName(name) {
       return names[name] ?? [];
+    },
+    async categoriesForIds(ids) {
+      const unique = [...new Set(ids)];
+      categoryQueries.push(unique);
+      const result = new Map<string, CardCategory>();
+      for (const id of unique) {
+        const category = categories[id];
+        if (category) result.set(id, category);
+      }
+      return result;
     },
   };
 }
@@ -164,6 +190,138 @@ describe("resolveDeck", () => {
     const resolved = await resolveDeck(parsed, mockLookup([]));
     expect(resolved.unresolved).toHaveLength(1);
     expect(resolved.cards[0]?.unresolvedReason).toMatch(/ALT print/);
+  });
+
+  it("moves trainers and energy out of Pokémon when the section divider is wrong", async () => {
+    const parsed = parseDecklist(`Pokémon: 4
+3 Chien-Pao ex PAL 61
+4 Nest Ball SVI 181
+1 Switch SVI 194
+2 Basic Water Energy SVE 11`);
+    expect(parsed.cards.every((card) => card.category === "pokemon")).toBe(true);
+
+    const lookup = mockLookup(
+      [
+        {
+          id: "sv02",
+          name: "Paldea Evolved",
+          abbreviation: { official: "PAL" },
+          cards: [resume({ id: "sv02-061", localId: "061", name: "Chien-Pao ex" })],
+        },
+        {
+          id: "sv01",
+          name: "Scarlet & Violet",
+          abbreviation: { official: "SVI" },
+          cards: [
+            resume({ id: "sv01-181", localId: "181", name: "Nest Ball" }),
+            resume({ id: "sv01-194", localId: "194", name: "Switch" }),
+          ],
+        },
+        {
+          id: "sve",
+          name: "Scarlet & Violet Energies",
+          abbreviation: { official: "SVE" },
+          cards: [resume({ id: "sve-011", localId: "011", name: "Water Energy" })],
+        },
+      ],
+      {},
+      {
+        "sv02-061": "pokemon",
+        "sv01-181": "trainer",
+        "sv01-194": "trainer",
+        "sve-011": "energy",
+      },
+    );
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.cards.map((card) => card.category)).toEqual([
+      "pokemon",
+      "trainer",
+      "trainer",
+      "energy",
+    ]);
+    expect(lookup.categoryQueries).toEqual([["sv02-061", "sv01-181", "sv01-194", "sve-011"]]);
+    expect(resolved.warnings.map((warning) => warning.message)).toEqual([
+      "Nest Ball was listed as Pokémon but TCGdex categorises it as Trainer.",
+      "Switch was listed as Pokémon but TCGdex categorises it as Trainer.",
+      "Basic Water Energy was listed as Pokémon but TCGdex categorises it as Energy.",
+    ]);
+    expect(resolved.cards.find((card) => card.name === "Chien-Pao ex")?.category).toBe("pokemon");
+  });
+
+  it("asks for each id once when the same card is listed twice", async () => {
+    const parsed = parseDecklist(`Pokémon: 2
+4 Nest Ball SVI 181
+2 Nest Ball SVI 181`);
+    const lookup = mockLookup(
+      [
+        {
+          id: "sv01",
+          name: "Scarlet & Violet",
+          abbreviation: { official: "SVI" },
+          cards: [resume({ id: "sv01-181", localId: "181", name: "Nest Ball" })],
+        },
+      ],
+      {},
+      { "sv01-181": "trainer" },
+    );
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.cards.every((card) => card.category === "trainer")).toBe(true);
+    expect(lookup.categoryQueries).toEqual([["sv01-181"]]);
+  });
+
+  it("reads category from hydrated cards instead of listing them again", async () => {
+    const parsed = parseDecklist(`Pokémon: 2
+1 Chien-Pao ex PAL 61
+4 Nest Ball SVI 181`);
+    const lookup = mockLookup(
+      [
+        {
+          id: "sv02",
+          name: "Paldea Evolved",
+          abbreviation: { official: "PAL" },
+          cards: [resume({ id: "sv02-061", localId: "061", name: "Chien-Pao ex" })],
+        },
+        {
+          id: "sv01",
+          name: "Scarlet & Violet",
+          abbreviation: { official: "SVI" },
+          cards: [resume({ id: "sv01-181", localId: "181", name: "Nest Ball" })],
+        },
+      ],
+      {},
+      { "sv02-061": "pokemon", "sv01-181": "trainer" },
+    );
+
+    const resolved = await resolveDeck(parsed, lookup, { hydrate: "full" });
+    expect(resolved.cards.map((card) => card.category)).toEqual(["pokemon", "trainer"]);
+    expect(lookup.categoryQueries).toEqual([]);
+    expect(resolved.warnings.map((warning) => warning.message)).toEqual([
+      "Nest Ball was listed as Pokémon but TCGdex categorises it as Trainer.",
+    ]);
+  });
+
+  it("fills an unknown category from TCGdex without a warning", async () => {
+    const parsed = parseDecklist("4 Nest Ball SVI 181");
+    expect(parsed.cards[0]?.category).toBe("unknown");
+
+    const lookup = mockLookup(
+      [
+        {
+          id: "sv01",
+          name: "Scarlet & Violet",
+          abbreviation: { official: "SVI" },
+          cards: [resume({ id: "sv01-181", localId: "181", name: "Nest Ball" })],
+        },
+      ],
+      {},
+      { "sv01-181": "trainer" },
+    );
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.cards[0]?.category).toBe("trainer");
+    expect(resolved.warnings).toEqual([]);
   });
 
   it("disambiguates RR between Rising Rivals and Team Rocket Returns", async () => {

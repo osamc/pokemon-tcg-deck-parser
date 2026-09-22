@@ -1,17 +1,27 @@
 import TCGdex, { Query } from "@tcgdex/sdk";
 import { aliasSetCode, extraSetIdsForCode, isPseudoSetCode } from "./set-aliases.js";
 import { InFlight, mapPool } from "./pool.js";
-import type { CardLookup, CardResumeLike, SetLike } from "./types.js";
+import type { CardCategory, CardLookup, CardResumeLike, SetLike } from "./types.js";
 
 interface AbbreviatedSet extends SetLike {
   abbreviation?: { official?: string };
 }
+
+const API_CATEGORIES = [
+  ["Pokemon", "pokemon"],
+  ["Trainer", "trainer"],
+  ["Energy", "energy"],
+] as const satisfies ReadonlyArray<readonly [string, CardCategory]>;
+
+/** Ids per filtered list query. Keeps the request URL well under typical limits. */
+const CATEGORY_ID_CHUNK = 40;
 
 export class TcgdexLookup implements CardLookup {
   private readonly inflight = new InFlight();
   private readonly setCodeIndex = new Map<string, string[]>();
   private readonly setCache = new Map<string, SetLike | undefined>();
   private readonly nameCache = new Map<string, CardResumeLike[]>();
+  private readonly categoryCache = new Map<string, CardCategory>();
 
   constructor(
     private readonly tcgdex: TCGdex,
@@ -91,6 +101,41 @@ export class TcgdexLookup implements CardLookup {
     });
   }
 
+  /**
+   * Category is not on set-list briefs. Ask TCGdex which of these ids belong to
+   * each category — three filtered list queries per chunk, not one request per card.
+   */
+  async categoriesForIds(ids: string[]): Promise<Map<string, CardCategory>> {
+    const result = new Map<string, CardCategory>();
+    const missing: string[] = [];
+
+    for (const id of new Set(ids.filter(Boolean))) {
+      const cached = this.categoryCache.get(id);
+      if (cached) result.set(id, cached);
+      else missing.push(id);
+    }
+    if (missing.length === 0) return result;
+
+    const jobs = chunkIds(missing, CATEGORY_ID_CHUNK).flatMap((chunk) =>
+      API_CATEGORIES.map(([apiCategory, category]) => ({ chunk, apiCategory, category })),
+    );
+
+    await mapPool(jobs, this.concurrency, async ({ chunk, apiCategory, category }) => {
+      const key = `category:${apiCategory}:${[...chunk].sort().join("|")}`;
+      const matches = await this.inflight.run(key, () =>
+        this.tcgdex.card.list(
+          Query.create().equal("id", chunk.join("|")).equal("category", apiCategory),
+        ),
+      );
+      for (const card of matches ?? []) {
+        this.categoryCache.set(card.id, category);
+        result.set(card.id, category);
+      }
+    });
+
+    return result;
+  }
+
   private async lookupMissingCodes(codes: string[]): Promise<void> {
     const stillMissing = codes.filter((code) => !this.setCodeIndex.has(code));
     if (stillMissing.length === 0) return;
@@ -140,6 +185,12 @@ export class TcgdexLookup implements CardLookup {
       this.setCodeIndex.set(code, current);
     }
   }
+}
+
+function chunkIds(ids: string[], size: number): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size));
+  return chunks;
 }
 
 function knownSetIds(code: string, setCodeIndex: Map<string, string[]>): string[] {

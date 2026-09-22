@@ -3,11 +3,13 @@ import { localIdCandidates, namesMatch, normalizeLocalId } from "./normalize.js"
 import { mapPool } from "./pool.js";
 import { extraSetIdsForCode, galleryKind, isAltSetCode, isPseudoSetCode } from "./set-aliases.js";
 import type {
+  CardCategory,
   CardLookup,
   CardResumeLike,
   HydrateMode,
   ParsedCard,
   ParsedDeck,
+  ParseWarning,
   ResolveOptions,
   ResolvedCard,
   ResolvedDeck,
@@ -91,15 +93,75 @@ export async function resolveDeck(
       ? await hydrateCards(withNames, lookup, concurrency)
       : withNames;
 
+  const warnings = [...parsed.warnings];
+  const cards = await correctCategories(hydrated, lookup, warnings);
+
   return {
     format: parsed.format,
-    cards: hydrated,
+    cards,
     totalCards: parsed.totalCards,
     declaredTotal: parsed.declaredTotal,
     sectionCounts: parsed.sectionCounts,
-    warnings: parsed.warnings,
-    unresolved: hydrated.filter((card) => !card.card),
+    warnings,
+    unresolved: cards.filter((card) => !card.card),
   };
+}
+
+/**
+ * Section headers are hints. A missing or wrong divider leaves trainers (and energy)
+ * in the Pokémon bucket, and set briefs do not include category. Confirm each matched
+ * id against TCGdex and rewrite the category when the API disagrees.
+ */
+async function correctCategories(
+  cards: ResolvedCard[],
+  lookup: CardLookup,
+  warnings: ParseWarning[],
+): Promise<ResolvedCard[]> {
+  const known = new Map<string, CardCategory>();
+  for (const card of cards) {
+    if (!card.tcgdexId) continue;
+    const category = categoryFromCard(card.card);
+    if (category) known.set(card.tcgdexId, category);
+  }
+
+  const missing = unique(
+    cards
+      .map((card) => card.tcgdexId)
+      .filter((id): id is string => {
+        if (!id) return false;
+        return !known.has(id);
+      }),
+  );
+  const lookedUp =
+    missing.length > 0 && lookup.categoriesForIds
+      ? await lookup.categoriesForIds(missing)
+      : new Map<string, CardCategory>();
+
+  return cards.map((card) => {
+    if (!card.tcgdexId) return card;
+    const apiCategory = known.get(card.tcgdexId) ?? lookedUp.get(card.tcgdexId);
+    if (!apiCategory || apiCategory === card.category) return card;
+    if (card.category !== "unknown") {
+      warnings.push({
+        line: card.line,
+        message: `${card.name} was listed as ${categoryLabel(card.category)} but TCGdex categorises it as ${categoryLabel(apiCategory)}.`,
+      });
+    }
+    return { ...card, category: apiCategory };
+  });
+}
+
+function categoryLabel(category: CardCategory): string {
+  if (category === "pokemon") return "Pokémon";
+  if (category === "trainer") return "Trainer";
+  if (category === "energy") return "Energy";
+  return "Unknown";
+}
+
+function categoryFromCard(card: ResolvedCard["card"]): CardCategory | undefined {
+  const value = (card as { category?: string } | undefined)?.category?.trim().toLowerCase();
+  if (value === "pokemon" || value === "trainer" || value === "energy") return value;
+  return undefined;
 }
 
 function withExtraSetIds(codeToSets: Map<string, string[]>): Map<string, string[]> {

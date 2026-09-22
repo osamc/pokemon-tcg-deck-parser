@@ -47,7 +47,11 @@ export class DeckParser {
     });
   }
 
-  /** Parse a decklist and look up each card via TCGdex. */
+  /**
+   * Parse a decklist and look up each card via TCGdex.
+   * Section dividers are checked against each card's TCGdex category, so a trainer
+   * filed under Pokémon is moved to the right category.
+   */
   async parseAndResolve(
     text: string,
     options: ParseOptions & ResolveOptions = {},
