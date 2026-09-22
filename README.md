@@ -53,6 +53,18 @@ const parsed = parseDecklist(text); // or parser.parse(text)
 const format = detectFormat(text);  // "ptcgl" | "limitless" | "unknown"
 ```
 
+## Custom TCGdex endpoint
+
+Point the parser at a self-hosted TCGdex instance, a mirror, or a caching proxy. The SDK appends the language segment (`/en`, `/fr`, …), so pass only the base URL.
+
+```ts
+const parser = new DeckParser({
+  endpoint: "https://tcgdex.example.com/v2", // defaults to https://api.tcgdex.net/v2
+});
+```
+
+`endpoint` also applies when you pass your own `tcgdex` client, overriding whatever endpoint it was configured with.
+
 ## Reuse an existing TCGdex client
 
 ```ts
