@@ -1,8 +1,10 @@
+export { exportDecklist } from "./export.js";
 export { detectFormat, parseDecklist } from "./parse.js";
 export { DeckParser, parseDeck } from "./parser.js";
 export {
   energyDisplayNames,
   expandEnergyShorthand,
+  formatEnergyName,
   isBasicEnergyName,
   isEnergyCardName,
   isEnergyTrainerName,
@@ -16,6 +18,9 @@ export type {
   CardLookup,
   DeckFormat,
   DeckParserOptions,
+  ExportableDeck,
+  ExportCard,
+  ExportOptions,
   HydrateMode,
   ParseOptions,
   ParseWarning,

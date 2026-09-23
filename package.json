@@ -1,7 +1,7 @@
 {
   "name": "pokemon-tcg-deck-parser",
   "version": "0.1.0",
-  "description": "Parse Pokémon TCG Live and Limitless deck exports and resolve cards via the TCGdex API.",
+  "description": "Parse and export Pokémon TCG Live and Limitless decklists, and resolve cards via the TCGdex API.",
   "license": "MIT",
   "author": "",
   "keywords": [

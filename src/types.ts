@@ -58,6 +58,27 @@ export interface ParseOptions {
   format?: DeckFormat | "auto";
 }
 
+/** A card row that can be written back out as a decklist. */
+export interface ExportCard {
+  quantity: number;
+  name: string;
+  setCode?: string;
+  number?: string;
+  foil?: string;
+  category?: CardCategory;
+}
+
+/** Parsed or hand-built deck passed to {@link exportDecklist}. */
+export interface ExportableDeck {
+  format?: DeckFormat;
+  cards: readonly ExportCard[];
+}
+
+export interface ExportOptions {
+  /** Format to write. Defaults to the deck's `format`. */
+  format?: DeckFormat;
+}
+
 export interface DeckParserOptions {
   /** TCGdex language. Defaults to `"en"`. */
   lang?: "en" | "fr" | "es" | "es-mx" | "it" | "pt" | "pt-br" | "de" | "nl" | "pl" | "ru" | "ja" | "ko" | "zh-tw" | "id" | "th" | "zh-cn";

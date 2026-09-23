@@ -10,7 +10,7 @@
     <header class="top">
       <div>
         <h1>Deck parser debug</h1>
-        <p>Paste a PTCGL or Limitless export, then parse locally or resolve through TCGdex.</p>
+        <p>Paste a PTCGL or Limitless list, parse it, or export it in either format.</p>
       </div>
       <p id="status" class="status" aria-live="polite">Ready</p>
     </header>
@@ -36,6 +36,8 @@
         <button type="button" id="sample-limitless">Load Limitless sample</button>
         <button type="button" id="parse">Parse only</button>
         <button type="button" id="resolve" class="primary">Parse &amp; resolve</button>
+        <button type="button" id="export-ptcgl">Export PTCGL</button>
+        <button type="button" id="export-limitless">Export Limitless</button>
       </div>
       <textarea
         id="decklist"

@@ -1,6 +1,6 @@
 # pokemon-tcg-deck-parser
 
-Parse Pokémon TCG Live (`ptcgl`) and Limitless (`limitless`) deck exports, then look up the cards through the [TCGdex TypeScript SDK](https://tcgdex.dev/sdks/typescript).
+Parse and export Pokémon TCG Live (`ptcgl`) and Limitless (`limitless`) decklists, then look up the cards through the [TCGdex TypeScript SDK](https://tcgdex.dev/sdks/typescript).
 
 The library is built to be reused across projects: parsing is synchronous and local, lookups are cached, and the API is queried per **unique set** rather than once per card.
 
@@ -13,7 +13,7 @@ npm i pokemon-tcg-deck-parser
 ## Usage
 
 ```ts
-import { DeckParser, parseDecklist, detectFormat } from "pokemon-tcg-deck-parser";
+import { DeckParser, parseDecklist, exportDecklist, detectFormat } from "pokemon-tcg-deck-parser";
 
 const parser = new DeckParser({
   lang: "en",
@@ -34,6 +34,10 @@ Total Cards: 6
 deck.cards.forEach((entry) => {
   console.log(entry.quantity, entry.name, entry.tcgdexId, entry.card?.image);
 });
+
+// Write the same deck back out. Defaults to the parsed format.
+const limitless = exportDecklist(deck, { format: "limitless" });
+const ptcgl = parser.export(deck, { format: "ptcgl" });
 ```
 
 Share one parser instance across a process so set lists, abbreviation maps, and SDK responses stay cached.
@@ -110,6 +114,17 @@ Energy: 20
 ```
 
 Pass `{ format: "ptcgl" }` or `{ format: "limitless" }` to skip auto-detection.
+
+## Export
+
+`exportDecklist` (and `parser.export`) write a parsed deck in either format. Section headers are the number of cards in that section. PTCGL also adds a `Total Cards:` line and spells basic Energy as `Basic {W} Energy`. Limitless spells the same card `Water Energy` and omits the total line. Special Energy (`Jet Energy`) and foil markers (`PH`) are kept in both.
+
+```ts
+const parsed = parseDecklist(text);
+exportDecklist(parsed);                        // same format as parsed.format
+exportDecklist(parsed, { format: "limitless" });
+parser.export(parsed, { format: "ptcgl" });
+```
 
 ## How lookups stay cheap
 
