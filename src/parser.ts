@@ -1,10 +1,13 @@
 import TCGdex from "@tcgdex/sdk";
+import { exportDecklist } from "./export.js";
 import { parseDecklist } from "./parse.js";
 import { resolveDeck } from "./resolve.js";
 import { TcgdexLookup } from "./tcgdex-lookup.js";
 import type {
   CardLookup,
   DeckParserOptions,
+  ExportableDeck,
+  ExportOptions,
   ParseOptions,
   ParsedDeck,
   ResolveOptions,
@@ -40,6 +43,14 @@ export class DeckParser {
   /** Parse a decklist without contacting the API. */
   parse(text: string, options: ParseOptions = {}): ParsedDeck {
     return parseDecklist(text, options);
+  }
+
+  /**
+   * Write a parsed deck back out as PTCGL or Limitless text.
+   * Defaults to the deck's own format.
+   */
+  export(deck: ExportableDeck, options: ExportOptions = {}): string {
+    return exportDecklist(deck, options);
   }
 
   /** Resolve already-parsed cards through TCGdex. */

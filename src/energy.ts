@@ -20,6 +20,26 @@ export function expandEnergyShorthand(name: string): string {
   });
 }
 
+const BASIC_ENERGY_RE = new RegExp(
+  `^(?:basic\\s+)?(${ENERGY_TYPES.join("|")})\\s+energy$`,
+  "i",
+);
+
+/**
+ * Canonical basic-energy spelling for a deck export.
+ * PTCGL writes `Basic {W} Energy`; Limitless writes `Water Energy`.
+ * Other names are returned unchanged aside from `{W}` expansion.
+ */
+export function formatEnergyName(name: string, format: "ptcgl" | "limitless"): string {
+  const expanded = expandEnergyShorthand(name).trim();
+  const basic = BASIC_ENERGY_RE.exec(expanded);
+  const type = basic?.[1] ? titleCase(basic[1]) : undefined;
+  if (!type) return expanded;
+  if (format === "limitless") return `${type} Energy`;
+  const letter = Object.entries(ENERGY_SHORTHAND).find(([, label]) => label === type)?.[0];
+  return letter ? `Basic {${letter}} Energy` : `Basic ${type} Energy`;
+}
+
 export function energyDisplayNames(name: string): string[] {
   const expanded = expandEnergyShorthand(name).trim();
   const names = new Set<string>([name.trim(), expanded]);

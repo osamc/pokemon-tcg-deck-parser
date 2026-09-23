@@ -1,6 +1,7 @@
 import {
   DeckParser,
   detectFormat,
+  exportDecklist,
   parseDecklist,
   type DeckFormat,
   type HydrateMode,
@@ -75,6 +76,30 @@ document.querySelector("#parse")?.addEventListener("click", () => {
 document.querySelector("#resolve")?.addEventListener("click", () => {
   void run("resolve");
 });
+
+document.querySelector("#export-ptcgl")?.addEventListener("click", () => {
+  exportAs("ptcgl");
+});
+
+document.querySelector("#export-limitless")?.addEventListener("click", () => {
+  exportAs("limitless");
+});
+
+function exportAs(target: DeckFormat): void {
+  const text = decklist.value.trim();
+  if (!text) {
+    setStatus("Paste a decklist first");
+    return;
+  }
+  const selectedFormat = format.value as "auto" | DeckFormat;
+  const parsed = parseDecklist(text, formatOption(selectedFormat));
+  const exported = exportDecklist(parsed, { format: target });
+  decklist.value = exported;
+  format.value = target;
+  const rewritten = parseDecklist(exported, { format: target });
+  render(rewritten, 0, detectFormat(exported));
+  setStatus(`Exported as ${target}`);
+}
 
 async function run(mode: "parse" | "resolve"): Promise<void> {
   const text = decklist.value.trim();
