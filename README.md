@@ -42,6 +42,10 @@ const ptcgl = parser.export(deck, { format: "ptcgl" });
 
 Share one parser instance across a process so set lists, abbreviation maps, and SDK responses stay cached.
 
+```ts
+parser.clearCache(); // drop set/name/category caches and the SDK response cache
+```
+
 ## Debug web app
 
 ```bash
@@ -137,7 +141,7 @@ parser.export(parsed, { format: "ptcgl" });
 7. `hydrate: "full"` then fetches each **unique** matched card id, still through the SDK cache and a concurrency cap.
 8. Confirm each matched card's category. Set briefs do not include one, and a missing or wrong section divider can file trainers under Pokémon. Resolved ids are checked with filtered card-list queries — one query per category (`Pokemon`, `Trainer`, `Energy`) per chunk of ids, not one request per card. When the API disagrees, the card's `category` is corrected and a warning is recorded. `hydrate: "full"` already returns `category`, so those decks skip the extra queries.
 
-The SDK cache TTL defaults to 24 hours. Repeat parses of overlapping decks should mostly be cache hits.
+The SDK cache TTL defaults to 24 hours. Repeat parses of overlapping decks should mostly be cache hits. Call `parser.clearCache()` when you need a forced refresh.
 
 ## Result shape
 

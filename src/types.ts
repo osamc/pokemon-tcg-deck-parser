@@ -135,4 +135,6 @@ export interface CardLookup {
    * (filtered list queries, not one request per card).
    */
   categoriesForIds?(ids: string[]): Promise<Map<string, CardCategory>>;
+  /** Optional: drop any implementation-level caches. */
+  clearCache?(): void;
 }

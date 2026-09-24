@@ -28,6 +28,18 @@ export class TcgdexLookup implements CardLookup {
     private readonly concurrency: number,
   ) {}
 
+  /**
+   * Drop in-memory lookup caches and the underlying TCGdex SDK cache.
+   * Use after you know the API data changed, or when debugging stale matches.
+   */
+  clearCache(): void {
+    this.setCache.clear();
+    this.nameCache.clear();
+    this.categoryCache.clear();
+    this.setCodeIndex.clear();
+    void Promise.resolve(this.tcgdex.getCache().clear());
+  }
+
   async resolveSetCodes(codes: string[]): Promise<Map<string, string[]>> {
     const result = new Map<string, string[]>();
     const uniqueCodes = [...new Set(codes.map((code) => code.toUpperCase()).filter(Boolean))];

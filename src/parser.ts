@@ -4,7 +4,6 @@ import { parseDecklist } from "./parse.js";
 import { resolveDeck } from "./resolve.js";
 import { TcgdexLookup } from "./tcgdex-lookup.js";
 import type {
-  CardLookup,
   DeckParserOptions,
   ExportableDeck,
   ExportOptions,
@@ -18,7 +17,7 @@ const DEFAULT_CACHE_TTL = 60 * 60 * 24;
 const DEFAULT_CONCURRENCY = 4;
 
 export class DeckParser {
-  private readonly lookup: CardLookup;
+  private readonly lookup: TcgdexLookup;
   private readonly defaults: Required<Pick<DeckParserOptions, "concurrency" | "hydrate">>;
 
   constructor(options: DeckParserOptions = {}) {
@@ -38,6 +37,14 @@ export class DeckParser {
       hydrate: options.hydrate ?? "resume",
     };
     this.lookup = new TcgdexLookup(tcgdex, concurrency);
+  }
+
+  /**
+   * Invalidate cached set lists, name searches, categories, and SDK responses.
+   * The next resolve will hit the API again for anything previously cached.
+   */
+  clearCache(): void {
+    this.lookup.clearCache();
   }
 
   /** Parse a decklist without contacting the API. */
