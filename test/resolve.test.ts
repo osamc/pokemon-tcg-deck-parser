@@ -324,6 +324,29 @@ describe("resolveDeck", () => {
     expect(resolved.warnings).toEqual([]);
   });
 
+  it("matches letter collector numbers from a set", async () => {
+    const parsed = parseDecklist("1 Unown UF M", { format: "limitless" });
+    const lookup = mockLookup([
+      {
+        id: "uf",
+        name: "Unown UF",
+        abbreviation: { official: "UF" },
+        tcgOnline: "UF",
+        cards: [resume({ id: "uf-m", localId: "M", name: "Unown UF M" })],
+      },
+    ]);
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.unresolved).toHaveLength(0);
+    expect(resolved.cards[0]).toMatchObject({
+      name: "Unown",
+      setCode: "UF",
+      number: "M",
+      tcgdexId: "uf-m",
+      setId: "uf",
+    });
+  });
+
   it("disambiguates RR between Rising Rivals and Team Rocket Returns", async () => {
     const parsed = parseDecklist(`Pokémon: 3
 1 Rocket's Admin. RR 86
