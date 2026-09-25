@@ -54,3 +54,25 @@ describe("DeckParser.clearCache", () => {
     expect(tcgdex.getCache().has("probe")).toBe(false);
   });
 });
+
+describe("DeckParser letter collector numbers", () => {
+  it("resolves Unown UF M via tcgdex.giantstump.com", async () => {
+    const parser = new DeckParser({
+      endpoint: "https://tcgdex.giantstump.com/v2",
+      cacheTTL: 0,
+    });
+
+    const resolved = await parser.parseAndResolve("1 Unown UF M", {
+      format: "limitless",
+    });
+
+    expect(resolved.unresolved).toHaveLength(0);
+    expect(resolved.cards[0]).toMatchObject({
+      name: "Unown",
+      setCode: "UF",
+      number: "M",
+      tcgdexId: expect.stringMatching(/m$/i),
+    });
+    expect(resolved.cards[0]?.card).toBeDefined();
+  }, 30_000);
+});

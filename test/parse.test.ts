@@ -180,6 +180,38 @@ Energy: 3
     expect(parsed.cards.find((card) => card.name === "Basic Water Energy")?.category).toBe("energy");
   });
 
+  it("parses letter collector numbers used by Unown prints", () => {
+    expect(parseDecklist("1 Unown UF M", { format: "limitless" }).cards[0]).toMatchObject({
+      quantity: 1,
+      name: "Unown",
+      setCode: "UF",
+      number: "M",
+    });
+    expect(parseDecklist("1 Unown UF !").cards[0]).toMatchObject({
+      name: "Unown",
+      setCode: "UF",
+      number: "!",
+    });
+    expect(parseDecklist("1 Unown UF ?").cards[0]).toMatchObject({
+      name: "Unown",
+      setCode: "UF",
+      number: "?",
+    });
+  });
+
+  it("does not treat name suffixes like ex as collector numbers", () => {
+    expect(parseDecklist("1 Mew ex").cards[0]).toMatchObject({
+      name: "Mew ex",
+      setCode: undefined,
+      number: undefined,
+    });
+    expect(parseDecklist("1 Pikachu V").cards[0]).toMatchObject({
+      name: "Pikachu V",
+      setCode: undefined,
+      number: undefined,
+    });
+  });
+
   it("does not treat Switch or Removal as set codes on Energy trainers", () => {
     expect(parseDecklist("4 Energy Switch 194").cards[0]).toMatchObject({
       name: "Energy Switch",

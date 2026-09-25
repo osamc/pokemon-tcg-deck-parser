@@ -7,7 +7,13 @@ const BARE_SECTION_RE =
   /^(pok[eé]mon|trainers?|energy|energies)\s*[:：]?\s*$/i;
 const TOTAL_RE = /^total\s+cards?\s*[:：]?\s*(\d+)\s*$/i;
 const CARD_LINE_RE = /^(\d{1,3})\s*[x×]?\s+(.+)$/i;
+/** Numeric / alphanumeric collector numbers (61, TG11, SWSH098, 25a). */
 const NUMBER_RE = /^[A-Za-z]{0,5}\d{1,4}[A-Za-z]?$/;
+/**
+ * Letter / symbol collector numbers used by some older prints (Unown "M", "!", "?").
+ * Only accepted when a set code is also present so names like "Mew ex" stay intact.
+ */
+const ALPHA_NUMBER_RE = /^[A-Za-z!?]$/;
 const SETCODE_RE = /^[A-Z][A-Z0-9]{0,6}(?:-[A-Z0-9]{1,4})?$/;
 const FOIL_MARKERS = new Set(["PH", "RH", "SH"]);
 
@@ -62,7 +68,7 @@ export function splitCardTokens(rest: string): SplitCardTokens {
 
   if (
     tokens.length >= 3 &&
-    NUMBER_RE.test(tokens[tokens.length - 1] ?? "") &&
+    looksLikeCollectorNumber(tokens[tokens.length - 1] ?? "") &&
     /^energy$/i.test(tokens[tokens.length - 2] ?? "") &&
     isEnergyCardName(tokens.slice(0, -2).join(" "))
   ) {
@@ -76,7 +82,7 @@ export function splitCardTokens(rest: string): SplitCardTokens {
 
   if (
     tokens.length >= 3 &&
-    NUMBER_RE.test(tokens[tokens.length - 1] ?? "") &&
+    looksLikeCollectorNumber(tokens[tokens.length - 1] ?? "", { allowAlpha: true }) &&
     looksLikeSetCode(tokens[tokens.length - 2] ?? "") &&
     !isLoneEnergyTrainerName(tokens.slice(0, -2), tokens[tokens.length - 2])
   ) {
@@ -90,7 +96,7 @@ export function splitCardTokens(rest: string): SplitCardTokens {
 
   if (
     tokens.length >= 2 &&
-    NUMBER_RE.test(tokens[tokens.length - 1] ?? "") &&
+    looksLikeCollectorNumber(tokens[tokens.length - 1] ?? "") &&
     !isNumberedEnergyTrainerName(tokens.join(" "))
   ) {
     return {
@@ -101,6 +107,14 @@ export function splitCardTokens(rest: string): SplitCardTokens {
   }
 
   return { nameTokens: tokens, foil };
+}
+
+function looksLikeCollectorNumber(
+  token: string,
+  options: { allowAlpha?: boolean } = {},
+): boolean {
+  if (NUMBER_RE.test(token)) return true;
+  return Boolean(options.allowAlpha && ALPHA_NUMBER_RE.test(token));
 }
 
 function looksLikeSetCode(token: string): boolean {
