@@ -41,3 +41,16 @@ describe("DeckParser endpoint option", () => {
     }
   });
 });
+
+describe("DeckParser.clearCache", () => {
+  it("clears the TCGdex SDK cache for a shared client", () => {
+    const tcgdex = new TCGdex("en");
+    tcgdex.getCache().set("probe", { ok: true }, 60);
+    expect(tcgdex.getCache().has("probe")).toBe(true);
+
+    const parser = new DeckParser({ tcgdex });
+    parser.clearCache();
+
+    expect(tcgdex.getCache().has("probe")).toBe(false);
+  });
+});

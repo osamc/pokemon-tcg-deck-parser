@@ -16,6 +16,13 @@ function fakeTcgdex(categories: Record<string, string>): {
   const queries: string[] = [];
   const cardGets: string[] = [];
   const sdk = {
+    getCache() {
+      return {
+        clear() {
+          return true;
+        },
+      };
+    },
     card: {
       async list(query?: Query): Promise<ListedCard[]> {
         const params = query?.params ?? [];
@@ -92,5 +99,77 @@ describe("TcgdexLookup.categoriesForIds", () => {
     const second = await lookup.categoriesForIds(ids);
     expect(second.size).toBe(41);
     expect(queries).toEqual([]);
+  });
+
+  it("clearCache forces category lookups to run again", async () => {
+    const { sdk, queries } = fakeTcgdex({
+      "sv02-061": "Pokemon",
+      "sv01-181": "Trainer",
+    });
+    const lookup = new TcgdexLookup(sdk, 4);
+
+    await lookup.categoriesForIds(["sv02-061", "sv01-181"]);
+    expect(queries).toHaveLength(3);
+
+    queries.length = 0;
+    await lookup.categoriesForIds(["sv02-061", "sv01-181"]);
+    expect(queries).toEqual([]);
+
+    lookup.clearCache();
+    await lookup.categoriesForIds(["sv02-061", "sv01-181"]);
+    expect(queries).toHaveLength(3);
+  });
+});
+
+describe("TcgdexLookup.clearCache", () => {
+  it("clears set and name caches so subsequent lookups refetch", async () => {
+    const setGets: string[] = [];
+    const nameQueries: string[] = [];
+    const cacheClears: number[] = [];
+    const sdk = {
+      getCache() {
+        return {
+          clear() {
+            cacheClears.push(1);
+            return true;
+          },
+        };
+      },
+      set: {
+        async get(id: string) {
+          setGets.push(id);
+          return {
+            id,
+            name: id,
+            cards: [{ id: `${id}-1`, localId: "1", name: "Test" }],
+          };
+        },
+      },
+      card: {
+        async list(query?: Query) {
+          const name = query?.params.find((param) => param.key === "name")?.value;
+          nameQueries.push(String(name ?? ""));
+          return [{ id: "sv01-1", localId: "1", name: "Nest Ball" }];
+        },
+      },
+    } as unknown as TCGdex;
+
+    const lookup = new TcgdexLookup(sdk, 2);
+
+    await lookup.getSet("sv01");
+    await lookup.getSet("sv01");
+    expect(setGets).toEqual(["sv01"]);
+
+    await lookup.findCardsByName("Nest Ball");
+    await lookup.findCardsByName("Nest Ball");
+    expect(nameQueries).toEqual(["eq:Nest Ball"]);
+
+    lookup.clearCache();
+    expect(cacheClears).toEqual([1]);
+
+    await lookup.getSet("sv01");
+    await lookup.findCardsByName("Nest Ball");
+    expect(setGets).toEqual(["sv01", "sv01"]);
+    expect(nameQueries).toEqual(["eq:Nest Ball", "eq:Nest Ball"]);
   });
 });

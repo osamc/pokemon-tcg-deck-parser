@@ -85,6 +85,11 @@ document.querySelector("#export-limitless")?.addEventListener("click", () => {
   exportAs("limitless");
 });
 
+document.querySelector("#clear-cache")?.addEventListener("click", () => {
+  parser.clearCache();
+  setStatus("Cache cleared");
+});
+
 function exportAs(target: DeckFormat): void {
   const text = decklist.value.trim();
   if (!text) {
