@@ -167,6 +167,21 @@ The SDK cache TTL defaults to 24 hours. Repeat parses of overlapping decks shoul
 
 Unresolved rows stay in `cards` with `unresolvedReason`, and are also listed on `unresolved`.
 
+## Publishing
+
+Releases are published to npm automatically via GitHub Actions when a [GitHub Release](https://github.com/osamc/pokemon-tcg-deck-parser/releases) is created. The workflow uses [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/) (OIDC)—no long-lived npm token is stored in the repo.
+
+One-time setup on [npmjs.com](https://www.npmjs.com/package/pokemon-tcg-deck-parser) → **package Settings → Trusted Publisher**:
+
+| Field | Value |
+| --- | --- |
+| Organization or user | `osamc` |
+| Repository | `pokemon-tcg-deck-parser` |
+| Workflow filename | `publish.yml` |
+| Environment name | _(leave blank)_ |
+
+Then create a GitHub Release whose tag is a semver version (`1.1.0` or `v1.1.0`). The workflow sets `package.json` to that version and runs `npm publish`.
+
 ## License
 
 MIT
