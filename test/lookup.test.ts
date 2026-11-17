@@ -121,6 +121,51 @@ describe("TcgdexLookup.categoriesForIds", () => {
   });
 });
 
+describe("TcgdexLookup.resolveSetCodes", () => {
+  it("still searches a shared code after another set was indexed under it", async () => {
+    // ex7 (Team Rocket Returns) has abbreviation TR; base5 (Team Rocket) has tcgOnline TR.
+    const sets: Record<string, { id: string; name: string; abbreviation?: { official: string }; tcgOnline?: string }> = {
+      ex7: { id: "ex7", name: "Team Rocket Returns", abbreviation: { official: "TR" }, tcgOnline: "RR" },
+      base5: { id: "base5", name: "Team Rocket", abbreviation: { official: "RO" }, tcgOnline: "TR" },
+    };
+    const listQueries: string[] = [];
+    const sdk = {
+      getCache() {
+        return { clear: () => true };
+      },
+      set: {
+        async list(query?: Query) {
+          const param = query?.params[0];
+          listQueries.push(`${param?.key}=${param?.value}`);
+          const codes = String(param?.value ?? "").replace(/^eq:/, "").split("|");
+          return Object.values(sets).filter((set) =>
+            param?.key === "tcgOnline"
+              ? codes.includes(set.tcgOnline ?? "")
+              : codes.includes(set.abbreviation?.official ?? ""),
+          );
+        },
+        async get(id: string) {
+          const set = sets[id];
+          return set ? { ...set, cards: [] } : null;
+        },
+      },
+    } as unknown as TCGdex;
+    const lookup = new TcgdexLookup(sdk, 2);
+
+    // An earlier deck with a TRR card loads ex7, which indexes it under "TR".
+    await lookup.getSet("ex7");
+
+    const result = await lookup.resolveSetCodes(["TR"]);
+    expect(new Set(result.get("TR"))).toEqual(new Set(["ex7", "base5"]));
+    expect(listQueries).toHaveLength(2);
+
+    listQueries.length = 0;
+    const again = await lookup.resolveSetCodes(["TR"]);
+    expect(new Set(again.get("TR"))).toEqual(new Set(["ex7", "base5"]));
+    expect(listQueries).toEqual([]);
+  });
+});
+
 describe("TcgdexLookup.clearCache", () => {
   it("clears set and name caches so subsequent lookups refetch", async () => {
     const setGets: string[] = [];
