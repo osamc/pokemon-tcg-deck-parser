@@ -19,6 +19,12 @@ const CATEGORY_ID_CHUNK = 40;
 export class TcgdexLookup implements CardLookup {
   private readonly inflight = new InFlight();
   private readonly setCodeIndex = new Map<string, string[]>();
+  /**
+   * Codes already searched on TCGdex. Kept apart from `setCodeIndex`, which also
+   * fills as a side effect of loading sets: loading `ex7` indexes it under "TR",
+   * but base5 uses "TR" too, so "TR" still has to be searched once.
+   */
+  private readonly queriedCodes = new Set<string>();
   private readonly setCache = new Map<string, SetLike | undefined>();
   private readonly nameCache = new Map<string, CardResumeLike[]>();
   private readonly categoryCache = new Map<string, CardCategory>();
@@ -37,6 +43,7 @@ export class TcgdexLookup implements CardLookup {
     this.nameCache.clear();
     this.categoryCache.clear();
     this.setCodeIndex.clear();
+    this.queriedCodes.clear();
     void Promise.resolve(this.tcgdex.getCache().clear());
   }
 
@@ -55,7 +62,7 @@ export class TcgdexLookup implements CardLookup {
       result.set(code, ids);
 
       const alias = aliasSetCode(code);
-      if (alias || extraSetIdsForCode(code).length > 0 || this.setCodeIndex.has(code)) {
+      if (alias || extraSetIdsForCode(code).length > 0 || this.queriedCodes.has(code)) {
         continue;
       }
 
@@ -149,7 +156,7 @@ export class TcgdexLookup implements CardLookup {
   }
 
   private async lookupMissingCodes(codes: string[]): Promise<void> {
-    const stillMissing = codes.filter((code) => !this.setCodeIndex.has(code));
+    const stillMissing = codes.filter((code) => !this.queriedCodes.has(code));
     if (stillMissing.length === 0) return;
 
     const foundIds = new Set<string>();
@@ -170,6 +177,7 @@ export class TcgdexLookup implements CardLookup {
     );
 
     for (const code of stillMissing) {
+      this.queriedCodes.add(code);
       if (!this.setCodeIndex.has(code)) this.setCodeIndex.set(code, []);
     }
   }
