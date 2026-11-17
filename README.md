@@ -61,6 +61,14 @@ const parsed = parseDecklist(text); // or parser.parse(text)
 const format = detectFormat(text);  // "ptcgl" | "limitless" | "unknown"
 ```
 
+## Pin set codes
+
+`setCodeOverrides` maps a set code to one or more TCGdex set ids. Pinned codes skip TCGdex's own codes and `AMBIGUOUS_SET_CODES`. With several ids, the card name picks one. Pass it to the constructor, to `resolve` / `parseAndResolve` (merged over the constructor's), or to `parseDeck`.
+
+```ts
+const parser = new DeckParser({ setCodeOverrides: { TR: "base5", RR: ["pl2", "ex7"] } });
+```
+
 ## Custom TCGdex endpoint
 
 Point the parser at a self-hosted TCGdex instance, a mirror, or a caching proxy. The SDK appends the language segment (`/en`, `/fr`, …), so pass only the base URL.
@@ -134,9 +142,11 @@ parser.export(parsed, { format: "ptcgl" });
 
 1. Parse the list locally.
 2. Collect **unique** set codes.
-3. Resolve those codes in batch through TCGdex (`abbreviation.official` and `tcgOnline`), with a small alias table for promo codes (`PR-SW` → `swshp`, `SVE` → `sve`, …).
+3. Resolve those codes in batch through TCGdex (`abbreviation.official` first, then `tcgOnline`), with a small alias table for promo codes (`PR-SW` → `swshp`, `SVE` → `sve`, …). A code only ever maps to the sets TCGdex returned when asked about that code, so the result does not depend on which sets are already cached.
 4. Fetch each unique set **once**. Set payloads already include every card brief (`id`, `localId`, `name`, `image`), so a 60-card deck that uses 10 sets costs about 10 cached set requests — not 60 card requests.
-5. Match collector numbers locally (padding, `TG`/`GG` gallery sets, promo IDs). `RR` is treated as both Rising Rivals and Team Rocket Returns and disambiguated by card name; Limitless `TRR` maps to Team Rocket Returns.
+5. Match collector numbers locally (padding, `TG`/`GG` gallery sets, promo IDs), then check the card name. A set + number hit whose name disagrees is only used when the name search (step 6) finds nothing, with a warning.
+
+   Codes TCGdex gives to more than one set are answered from `AMBIGUOUS_SET_CODES`, not TCGdex: `TR` is Team Rocket or Team Rocket Returns, `RR` is Rising Rivals or Team Rocket Returns, and `TRR` is Team Rocket Returns. The card name picks the set.
 6. Name search is only used for leftovers (basic Energy-set lines, ALT prints, name-only rows).
 7. `hydrate: "full"` then fetches each **unique** matched card id, still through the SDK cache and a concurrency cap.
 8. Confirm each matched card's category. Set briefs do not include one, and a missing or wrong section divider can file trainers under Pokémon. Resolved ids are checked with filtered card-list queries — one query per category (`Pokemon`, `Trainer`, `Energy`) per chunk of ids, not one request per card. When the API disagrees, the card's `category` is corrected and a warning is recorded. `hydrate: "full"` already returns `category`, so those decks skip the extra queries.

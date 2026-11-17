@@ -148,6 +148,12 @@ export class TcgdexLookup implements CardLookup {
     return result;
   }
 
+  /**
+   * Ask TCGdex which sets use each code, then record exactly those. Codes are
+   * only ever indexed from this lookup, never as a side effect of loading a set
+   * for some other code, so a code resolves the same way whatever is cached.
+   * Official abbreviations come before tcgOnline codes.
+   */
   private async lookupMissingCodes(codes: string[]): Promise<void> {
     const stillMissing = codes.filter((code) => !this.setCodeIndex.has(code));
     if (stillMissing.length === 0) return;
@@ -164,13 +170,21 @@ export class TcgdexLookup implements CardLookup {
     );
     for (const set of byOnline ?? []) foundIds.add(set.id);
 
-    const missingAfterList = stillMissing.filter((code) => !this.setCodeIndex.has(code));
-    await mapPool([...foundIds, ...missingAfterList.map((code) => code.toLowerCase())], this.concurrency, (id) =>
-      this.getSet(id),
-    );
+    const loaded = (
+      await mapPool([...foundIds], this.concurrency, (id) => this.getSet(id))
+    ).filter((set): set is SetLike => Boolean(set));
 
     for (const code of stillMissing) {
-      if (!this.setCodeIndex.has(code)) this.setCodeIndex.set(code, []);
+      const ids = [
+        ...loaded.filter((set) => set.abbreviation?.official?.toUpperCase() === code),
+        ...loaded.filter((set) => set.tcgOnline?.toUpperCase() === code),
+      ].map((set) => set.id);
+      if (ids.length === 0) {
+        // The code may be a TCGdex set id (`sv01`).
+        const byId = await this.getSet(code.toLowerCase());
+        if (byId) ids.push(byId.id);
+      }
+      this.setCodeIndex.set(code, [...new Set(ids)]);
     }
   }
 
@@ -184,10 +198,9 @@ export class TcgdexLookup implements CardLookup {
     };
   }
 
+  /** A loaded set answers for its own id only; its other codes may be shared. */
   private indexSet(set: SetLike): void {
     this.addIndex(set.id.toUpperCase(), set.id);
-    if (set.abbreviation?.official) this.addIndex(set.abbreviation.official.toUpperCase(), set.id);
-    if (set.tcgOnline) this.addIndex(set.tcgOnline.toUpperCase(), set.id);
   }
 
   private addIndex(code: string, setId: string): void {
@@ -206,9 +219,10 @@ function chunkIds(ids: string[], size: number): string[][] {
 }
 
 function knownSetIds(code: string, setCodeIndex: Map<string, string[]>): string[] {
+  const extras = extraSetIdsForCode(code);
   return [...new Set([
     aliasSetCode(code),
-    ...(setCodeIndex.get(code) ?? []),
-    ...extraSetIdsForCode(code),
+    // Ambiguous codes keep their fixed, ordered list.
+    ...(extras.length > 0 ? extras : setCodeIndex.get(code) ?? []),
   ].filter((id): id is string => Boolean(id)))];
 }

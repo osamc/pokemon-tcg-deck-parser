@@ -11,6 +11,7 @@ import type {
   ParsedDeck,
   ResolveOptions,
   ResolvedDeck,
+  SetCodeOverrides,
 } from "./types.js";
 
 const DEFAULT_CACHE_TTL = 60 * 60 * 24;
@@ -18,7 +19,8 @@ const DEFAULT_CONCURRENCY = 4;
 
 export class DeckParser {
   private readonly lookup: TcgdexLookup;
-  private readonly defaults: Required<Pick<DeckParserOptions, "concurrency" | "hydrate">>;
+  private readonly defaults: Required<Pick<DeckParserOptions, "concurrency" | "hydrate">> &
+    Pick<DeckParserOptions, "setCodeOverrides">;
 
   constructor(options: DeckParserOptions = {}) {
     const tcgdex = options.tcgdex ?? new TCGdex(options.lang ?? "en");
@@ -35,6 +37,7 @@ export class DeckParser {
     this.defaults = {
       concurrency,
       hydrate: options.hydrate ?? "resume",
+      setCodeOverrides: options.setCodeOverrides,
     };
     this.lookup = new TcgdexLookup(tcgdex, concurrency);
   }
@@ -65,6 +68,7 @@ export class DeckParser {
     return resolveDeck(parsed, this.lookup, {
       hydrate: options.hydrate ?? this.defaults.hydrate,
       concurrency: options.concurrency ?? this.defaults.concurrency,
+      setCodeOverrides: mergeOverrides(this.defaults.setCodeOverrides, options.setCodeOverrides),
     });
   }
 
@@ -82,6 +86,19 @@ export class DeckParser {
   }
 }
 
+function mergeOverrides(
+  base: SetCodeOverrides | undefined,
+  extra: SetCodeOverrides | undefined,
+): SetCodeOverrides | undefined {
+  if (!base) return extra;
+  if (!extra) return base;
+  const merged: Record<string, string | readonly string[]> = {};
+  for (const source of [base, extra]) {
+    for (const [code, ids] of Object.entries(source)) merged[code.trim().toUpperCase()] = ids;
+  }
+  return merged;
+}
+
 function normalizeEndpoint(endpoint: string): string {
   const trimmed = endpoint.trim().replace(/\/+$/, "");
   if (!trimmed) throw new Error("DeckParser: `endpoint` must be a non-empty URL.");
@@ -93,8 +110,8 @@ export function parseDeck(
   text: string,
   options: DeckParserOptions & ParseOptions & ResolveOptions = {},
 ): Promise<ResolvedDeck> {
-  const { format, hydrate, concurrency, ...parserOptions } = options;
-  return new DeckParser({ ...parserOptions, hydrate, concurrency }).parseAndResolve(text, {
+  const { format, hydrate, concurrency, setCodeOverrides, ...parserOptions } = options;
+  return new DeckParser({ ...parserOptions, hydrate, concurrency, setCodeOverrides }).parseAndResolve(text, {
     format,
     hydrate,
     concurrency,

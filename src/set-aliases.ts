@@ -1,3 +1,5 @@
+import type { SetCodeOverrides } from "./types.js";
+
 /**
  * PTCGL / Limitless set codes that are not official abbreviations
  * (or that map more reliably to a specific TCGdex set).
@@ -31,13 +33,37 @@ export const SET_CODE_ALIASES: Record<string, string> = {
 };
 
 /**
- * Codes that more than one printed set has used.
- * RR is Rising Rivals (Limitless / official) and Team Rocket Returns (PTCGO tcgOnline).
+ * Codes TCGdex gives to more than one set, with every set they can mean.
+ * These are answered here, not by TCGdex, so the result never depends on
+ * which sets happen to be cached. The card name picks between the sets; the
+ * first one is the Limitless meaning.
+ *
+ * TCGdex lists Team Rocket Returns (ex7) with abbreviation `TR` and tcgOnline
+ * `RR`, which collide with Team Rocket (base5, tcgOnline `TR`) and Rising
+ * Rivals (pl2, abbreviation `RR`). Limitless writes Team Rocket Returns as `TRR`.
  */
 export const AMBIGUOUS_SET_CODES: Record<string, string[]> = {
-  RR: ["ex7", "pl2"],
+  TR: ["base5", "ex7"],
+  RR: ["pl2", "ex7"],
   TRR: ["ex7"],
 };
+
+/**
+ * Set ids a code is pinned to, or `undefined` when TCGdex should be asked.
+ * Caller overrides win over {@link AMBIGUOUS_SET_CODES}.
+ */
+export function pinnedSetIds(code: string, overrides?: SetCodeOverrides): string[] | undefined {
+  const key = code.trim().toUpperCase();
+  if (overrides) {
+    for (const [overrideCode, ids] of Object.entries(overrides)) {
+      if (overrideCode.trim().toUpperCase() !== key) continue;
+      const list = (Array.isArray(ids) ? ids : [ids]).map((id) => id.trim()).filter(Boolean);
+      if (list.length > 0) return [...new Set(list)];
+    }
+  }
+  const pinned = AMBIGUOUS_SET_CODES[key];
+  return pinned ? [...pinned] : undefined;
+}
 
 export const PROMO_LOCAL_ID_PREFIX: Record<string, string> = {
   swshp: "SWSH",

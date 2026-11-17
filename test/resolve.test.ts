@@ -379,4 +379,113 @@ describe("resolveDeck", () => {
     expect(resolved.cards[1]?.tcgdexId).toBe("pl2-86");
     expect(resolved.cards[2]?.tcgdexId).toBe("ex7-3");
   });
+
+  it("keeps TR on Team Rocket even when a lookup says Team Rocket Returns", async () => {
+    // Regression: once ex7 (abbreviation TR) was cached, TR 15 matched ex7-15.
+    const parsed = parseDecklist(`Trainer: 1
+1 Here Comes Team Rocket! TR 15`);
+    const lookup = mockLookup([
+      {
+        id: "ex7",
+        name: "Team Rocket Returns",
+        abbreviation: { official: "TR" },
+        tcgOnline: "RR",
+        cards: [resume({ id: "ex7-15", localId: "15", name: "Dark Tyranitar" })],
+      },
+      {
+        id: "base5",
+        name: "Team Rocket",
+        tcgOnline: "TR",
+        cards: [resume({ id: "base5-15", localId: "15", name: "Here Comes Team Rocket!" })],
+      },
+    ]);
+    lookup.resolveSetCodes = async (codes) => new Map(codes.map((code) => [code.toUpperCase(), ["ex7"]]));
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.cards[0]?.tcgdexId).toBe("base5-15");
+    expect(resolved.unresolved).toHaveLength(0);
+  });
+
+  it("does not accept a lone set + number hit whose name disagrees", async () => {
+    const parsed = parseDecklist("1 Here Comes Team Rocket! XX 15", { format: "limitless" });
+    const lookup = mockLookup(
+      [
+        {
+          id: "xx",
+          name: "Wrong Set",
+          abbreviation: { official: "XX" },
+          cards: [resume({ id: "xx-15", localId: "15", name: "Dark Tyranitar" })],
+        },
+      ],
+      {
+        "Here Comes Team Rocket!": [
+          resume({ id: "ex7-97", localId: "97", name: "Here Comes Team Rocket!" }),
+          resume({ id: "base5-15", localId: "15", name: "Here Comes Team Rocket!" }),
+        ],
+      },
+    );
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.cards[0]?.tcgdexId).toBe("base5-15");
+  });
+
+  it("falls back to the set + number hit with a warning when the name search finds nothing", async () => {
+    const parsed = parseDecklist("1 Mew Star DS 111", { format: "limitless" });
+    const lookup = mockLookup([
+      {
+        id: "ex14",
+        name: "Delta Species",
+        abbreviation: { official: "DS" },
+        cards: [resume({ id: "ex14-111", localId: "111", name: "Mew ☆" })],
+      },
+    ]);
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.cards[0]?.tcgdexId).toBe("ex14-111");
+    expect(resolved.unresolved).toHaveLength(0);
+    expect(resolved.warnings.map((warning) => warning.message)).toContainEqual(
+      expect.stringMatching(/Mew Star \(DS 111\) matched ex14-111 by set and number only/),
+    );
+  });
+
+  it("matches basic energy by its display names without a name search", async () => {
+    const parsed = parseDecklist("1 Basic {G} Energy SVE 1", { format: "ptcgl" });
+    const lookup = mockLookup([
+      {
+        id: "sve",
+        name: "Scarlet & Violet Energies",
+        cards: [resume({ id: "sve-1", localId: "1", name: "Basic Grass Energy" })],
+      },
+    ]);
+    let nameSearches = 0;
+    const findCardsByName = lookup.findCardsByName;
+    lookup.findCardsByName = async (name) => {
+      nameSearches++;
+      return findCardsByName(name);
+    };
+
+    const resolved = await resolveDeck(parsed, lookup);
+    expect(resolved.cards[0]?.tcgdexId).toBe("sve-1");
+    expect(nameSearches).toBe(0);
+  });
+
+  it("lets setCodeOverrides pin a code to a set", async () => {
+    const parsed = parseDecklist("1 Pikachu ABC 5", { format: "limitless" });
+    const lookup = mockLookup([
+      {
+        id: "abc",
+        name: "Wrong",
+        abbreviation: { official: "ABC" },
+        cards: [resume({ id: "abc-5", localId: "5", name: "Pikachu" })],
+      },
+      {
+        id: "custom",
+        name: "Right",
+        cards: [resume({ id: "custom-5", localId: "5", name: "Pikachu" })],
+      },
+    ]);
+
+    const resolved = await resolveDeck(parsed, lookup, { setCodeOverrides: { abc: "custom" } });
+    expect(resolved.cards[0]?.tcgdexId).toBe("custom-5");
+  });
 });

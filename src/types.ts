@@ -79,6 +79,12 @@ export interface ExportOptions {
   format?: DeckFormat;
 }
 
+/**
+ * Set code → TCGdex set id(s), e.g. `{ TR: "base5" }`. Pinned codes skip TCGdex's
+ * own abbreviation / tcgOnline lookup. With several ids the card name picks one.
+ */
+export type SetCodeOverrides = Readonly<Record<string, string | readonly string[]>>;
+
 export interface DeckParserOptions {
   /** TCGdex language. Defaults to `"en"`. */
   lang?: "en" | "fr" | "es" | "es-mx" | "it" | "pt" | "pt-br" | "de" | "nl" | "pl" | "ru" | "ja" | "ko" | "zh-tw" | "id" | "th" | "zh-cn";
@@ -102,11 +108,18 @@ export interface DeckParserOptions {
    * `"full"` then hydrates unique matched cards with complete TCGdex card objects.
    */
   hydrate?: HydrateMode;
+  /** Default {@link ResolveOptions.setCodeOverrides} for every resolve. */
+  setCodeOverrides?: SetCodeOverrides;
 }
 
 export interface ResolveOptions {
   hydrate?: HydrateMode;
   concurrency?: number;
+  /**
+   * Pin set codes to TCGdex set ids. Wins over `AMBIGUOUS_SET_CODES` and
+   * TCGdex's own codes. Merged over the parser's defaults.
+   */
+  setCodeOverrides?: SetCodeOverrides;
 }
 
 export interface SetLike {

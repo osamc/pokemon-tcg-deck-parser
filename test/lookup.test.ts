@@ -173,3 +173,65 @@ describe("TcgdexLookup.clearCache", () => {
     expect(nameQueries).toEqual(["eq:Nest Ball", "eq:Nest Ball"]);
   });
 });
+
+describe("TcgdexLookup.resolveSetCodes", () => {
+  function setSdk(sets: Array<{ id: string; abbreviation?: { official: string }; tcgOnline?: string }>) {
+    const lists: string[] = [];
+    const sdk = {
+      getCache() {
+        return { clear: () => true };
+      },
+      set: {
+        async get(id: string) {
+          const set = sets.find((item) => item.id === id);
+          return set ? { ...set, name: set.id, cards: [] } : null;
+        },
+        async list(query?: Query) {
+          const param = query?.params[0];
+          lists.push(`${param?.key}=${param?.value}`);
+          const codes = String(param?.value ?? "").replace(/^eq:/, "").split("|");
+          return sets
+            .filter((set) =>
+              param?.key === "abbreviation.official"
+                ? codes.includes(set.abbreviation?.official ?? "")
+                : codes.includes(set.tcgOnline ?? ""),
+            )
+            .map((set) => ({ id: set.id, name: set.id }));
+        },
+      },
+    } as unknown as TCGdex;
+    return { sdk, lists };
+  }
+
+  it("does not let a loaded set claim another set's code", async () => {
+    // Like ex7 (abbreviation TR) and base5 (tcgOnline TR).
+    const { sdk, lists } = setSdk([
+      { id: "aaa", abbreviation: { official: "AA" }, tcgOnline: "BB" },
+      { id: "bbb", abbreviation: { official: "BB" } },
+    ]);
+    const lookup = new TcgdexLookup(sdk, 2);
+
+    await lookup.getSet("aaa");
+    const codes = await lookup.resolveSetCodes(["BB"]);
+    expect(codes.get("BB")).toEqual(["bbb", "aaa"]);
+    expect(lists).toHaveLength(2);
+  });
+
+  it("answers ambiguous codes from the fixed table without asking TCGdex", async () => {
+    const { sdk, lists } = setSdk([{ id: "ex7", abbreviation: { official: "TR" }, tcgOnline: "RR" }]);
+    const lookup = new TcgdexLookup(sdk, 2);
+
+    await lookup.getSet("ex7");
+    const codes = await lookup.resolveSetCodes(["TR", "RR", "TRR"]);
+    expect(codes.get("TR")).toEqual(["base5", "ex7"]);
+    expect(codes.get("RR")).toEqual(["pl2", "ex7"]);
+    expect(codes.get("TRR")).toEqual(["ex7"]);
+    expect(lists).toEqual([]);
+  });
+
+  it("still resolves a code that is a set id", async () => {
+    const { sdk } = setSdk([{ id: "sv01" }]);
+    const lookup = new TcgdexLookup(sdk, 2);
+    expect((await lookup.resolveSetCodes(["SV01"])).get("SV01")).toEqual(["sv01"]);
+  });
+});

@@ -29,4 +29,5 @@ export type {
   ResolveOptions,
   ResolvedCard,
   ResolvedDeck,
+  SetCodeOverrides,
 } from "./types.js";

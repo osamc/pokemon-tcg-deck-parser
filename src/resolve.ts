@@ -1,7 +1,7 @@
 import { energyDisplayNames, useEnergyFallback } from "./energy.js";
 import { localIdCandidates, namesMatch, normalizeLocalId } from "./normalize.js";
 import { mapPool } from "./pool.js";
-import { extraSetIdsForCode, galleryKind, isAltSetCode, isPseudoSetCode } from "./set-aliases.js";
+import { galleryKind, isAltSetCode, isPseudoSetCode, pinnedSetIds } from "./set-aliases.js";
 import type {
   CardCategory,
   CardLookup,
@@ -32,7 +32,7 @@ export async function resolveDeck(
     ),
   ];
 
-  const codeToSets = withExtraSetIds(await lookup.resolveSetCodes(setCodes));
+  const codeToSets = await resolveCodes(setCodes, lookup, options);
   const setIds = unique(
     [...codeToSets.values()].flat().concat(gallerySetIds(parsed.cards, codeToSets)),
   );
@@ -45,9 +45,11 @@ export async function resolveDeck(
 
   const resolved: ResolvedCard[] = [];
   const nameLookups = new Map<string, CardResumeLike[] | undefined>();
+  // Set + number hits whose name disagrees; used only if the name search finds nothing.
+  const numberOnly = new Map<ResolvedCard, CardResumeLike>();
 
   for (const card of parsed.cards) {
-    const match = matchFromSets(card, codeToSets, sets);
+    const { match, fallback } = matchFromSets(card, codeToSets, sets);
     if (match) {
       resolved.push({
         ...card,
@@ -62,7 +64,9 @@ export async function resolveDeck(
       if (!nameLookups.has(name)) nameLookups.set(name, undefined);
     }
 
-    resolved.push({ ...card, unresolvedReason: "pending-name" });
+    const pending: ResolvedCard = { ...card, unresolvedReason: "pending-name" };
+    if (fallback) numberOnly.set(pending, fallback);
+    resolved.push(pending);
   }
 
   const namesToFetch = [...nameLookups.keys()];
@@ -70,8 +74,11 @@ export async function resolveDeck(
     nameLookups.set(name, await lookup.findCardsByName(name));
   });
 
+  const warnings = [...parsed.warnings];
+
   const withNames = resolved.map((card) => {
     if (card.tcgdexId || card.unresolvedReason !== "pending-name") return card;
+    const fallback = numberOnly.get(card);
     const match = matchByName(card, nameLookups);
     if (match) {
       return {
@@ -79,6 +86,20 @@ export async function resolveDeck(
         card: match,
         setId: setIdFromCardId(match.id),
         tcgdexId: match.id,
+        unresolvedReason: undefined,
+      };
+    }
+    if (fallback) {
+      // Spelling differences (Limitless vs TCGdex) should not lose an exact printing.
+      warnings.push({
+        line: card.line,
+        message: `${card.name} (${card.setCode} ${card.number}) matched ${fallback.id} by set and number only; TCGdex names it ${fallback.name}.`,
+      });
+      return {
+        ...card,
+        card: fallback,
+        setId: setIdFromCardId(fallback.id),
+        tcgdexId: fallback.id,
         unresolvedReason: undefined,
       };
     }
@@ -93,7 +114,6 @@ export async function resolveDeck(
       ? await hydrateCards(withNames, lookup, concurrency)
       : withNames;
 
-  const warnings = [...parsed.warnings];
   const cards = await correctCategories(hydrated, lookup, warnings);
 
   return {
@@ -164,20 +184,40 @@ function categoryFromCard(card: ResolvedCard["card"]): CardCategory | undefined 
   return undefined;
 }
 
-function withExtraSetIds(codeToSets: Map<string, string[]>): Map<string, string[]> {
-  const merged = new Map<string, string[]>();
-  for (const [code, ids] of codeToSets) {
-    merged.set(code, unique([...ids, ...extraSetIdsForCode(code)]));
+/**
+ * Code → candidate set ids. Pinned codes (caller overrides, then
+ * `AMBIGUOUS_SET_CODES`) skip TCGdex so they resolve the same way every time.
+ */
+async function resolveCodes(
+  codes: string[],
+  lookup: CardLookup,
+  options: ResolveOptions,
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  const toLookUp: string[] = [];
+  for (const code of codes) {
+    const pinned = pinnedSetIds(code, options.setCodeOverrides);
+    if (pinned) result.set(code.toUpperCase(), pinned);
+    else toLookUp.push(code);
   }
-  return merged;
+  if (toLookUp.length > 0) {
+    for (const [code, ids] of await lookup.resolveSetCodes(toLookUp)) result.set(code, ids);
+  }
+  return result;
 }
 
+/**
+ * `match` is a set + number hit whose name agrees with the list. A hit whose name
+ * disagrees is only a `fallback`: a code that TCGdex gives to two sets can land
+ * on the wrong one (TR 15 Here Comes Team Rocket! vs Team Rocket Returns 15),
+ * so the name search gets the first chance.
+ */
 function matchFromSets(
   card: ParsedCard,
   codeToSets: Map<string, string[]>,
   sets: Map<string, SetLike>,
-): CardResumeLike | undefined {
-  if (!card.setCode || !card.number || isPseudoSetCode(card.setCode)) return undefined;
+): { match?: CardResumeLike; fallback?: CardResumeLike } {
+  if (!card.setCode || !card.number || isPseudoSetCode(card.setCode)) return {};
 
   const setIds = preferSetsForNumber(card.number, codeToSets.get(card.setCode.toUpperCase()) ?? []);
   const matches: CardResumeLike[] = [];
@@ -188,11 +228,12 @@ function matchFromSets(
     if (matched) matches.push(matched);
   }
 
-  if (matches.length === 0) return undefined;
-  if (matches.length === 1) return matches[0];
+  if (matches.length === 0) return {};
 
-  const named = matches.filter((item) => namesMatch(item.name, card.name));
-  return named[0];
+  const names = lookupNamesFor(card).concat(card.name);
+  const named = matches.find((item) => names.some((name) => namesMatch(item.name, name)));
+  if (named) return { match: named };
+  return matches.length === 1 ? { fallback: matches[0] } : {};
 }
 
 function matchLocalId(set: SetLike, number: string): CardResumeLike | undefined {
